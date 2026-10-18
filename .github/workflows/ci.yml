@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install
+        run: pip install -r requirements.txt
+      - name: Compile
+        run: python -m compileall src tests
+      - name: Unit tests
+        run: python -m unittest discover -s tests -v
+      - name: Seed database
+        run: python src/demo_seed.py
+      - name: API smoke test
+        run: |
+          uvicorn src.api:app --host 127.0.0.1 --port 8000 > /tmp/scholarflow.log 2>&1 &
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8000/health; then break; fi
+            sleep 1
+          done
+          curl -fsS -X POST http://127.0.0.1:8000/search             -H "Content-Type: application/json"             -d '{"query":"human reliance on large language models","top_k":3}'
